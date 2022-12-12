@@ -2,18 +2,20 @@
     // connect to mysql db
     require_once 'dbconfig.php';
 
-    // Get data from sugang.php
+    // Get data passed from sugang.php
     $e_courseCode = mysqli_real_escape_string($link, $_POST['e_courseCode']);
     $e_StdNo = mysqli_real_escape_string($link, $_POST['e_StdNo']);
     $e_StdName = mysqli_real_escape_string($link, $_POST['e_StdName']);
 
 
+    //Register course
     $sql = "INSERT INTO COURSE_REGISTRATION VALUES ('$e_courseCode','$e_StdNo');";
     $result = mysqli_query($link, $sql);
 
+    //Check whether student can register or not
     if (mysqli_errno($link) == 1644 ) {
         echo "<script>
-        alert('ERROR: You can only register for maximum 24 credits and 3 Liberal Arts courses!');
+        alert('ERROR: You can not register for: Over 24 credits/ More than 3 Liberal Arts course/ Same subject.');
         </script>";
     }
 
