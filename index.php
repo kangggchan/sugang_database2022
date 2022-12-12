@@ -55,6 +55,8 @@
             </div>
             
             <div class="login-box-body">
+
+              <!-- Pass login information (Name, Std Number) to sugang.php -->
               <form action="sugang.php" method="post">
 
                   <div class="form-group">
