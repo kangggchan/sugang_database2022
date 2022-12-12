@@ -2,6 +2,8 @@
     // connect to mysql db
     require_once 'dbconfig.php';
 
+    
+
     //Get StdName and StdNo from Login
     $e_StdName = mysqli_real_escape_string($link, $_REQUEST['e_StdName']);
     $e_StdNo = mysqli_real_escape_string($link, $_REQUEST['e_StdNo']);
@@ -16,11 +18,10 @@
 
     //Add student informations into database if it does not exist
     $sql = "INSERT IGNORE INTO SUGANG.STUDENT VALUES ('$e_StdName', '$e_StdNo', 'IT대학', '컴퓨터학부 글로벌소프트웨어융합전공');";
-    
     $result = mysqli_query($link, $sql);
 
-    //Check validate login information
-    $sql ="SELECT StdName FROM SUGANG.STUDENT WHERE '$e_StdNo' = StdNo";
+    //Check valid login information
+    $sql ="SELECT StdName, StdCollege, StdDepartment FROM SUGANG.STUDENT WHERE '$e_StdNo' = StdNo";
     $result = mysqli_query($link, $sql);
     $row = mysqli_fetch_assoc($result);
 
@@ -31,6 +32,27 @@
         window.history.back();
         </script>";
     }
+    
+
+
+    // Display searching course 
+    $sql = "SELECT CourseCode, CourseName, Lecturer, Type, Credit, CourseTime2, StudQuota FROM COURSE
+    WHERE CourseCode IN (SELECT DISTINCT SearchCourseNo FROM COURSE_SEARCHING WHERE SearchStdNo = '$e_StdNo');";
+    $result = mysqli_query($link, $sql);
+
+
+    // Display registered course 
+    $sql2 = "SELECT CourseCode, CourseName, Lecturer, Type, Credit, CourseTime2, StudQuota FROM COURSE
+    WHERE CourseCode IN (SELECT DISTINCT ReCourseNo FROM COURSE_Registration WHERE ReStdNo = '$e_StdNo');";
+    $result2 = mysqli_query($link, $sql2);
+
+
+    //Calculate to display sum of registered credits 
+    $sql_sum ="SELECT COALESCE(SUM(Credit),0) FROM COURSE WHERE courseCode IN
+    (SELECT ReCourseNo FROM COURSE_REGISTRATION WHERE ReStdNo = '$e_StdNo');";
+    $result_sum = mysqli_query($link, $sql_sum);
+    $result_sum = $result_sum->fetch_array();
+    $sum = intval($result_sum[0]);
 
     
 
@@ -78,6 +100,7 @@
 <div class="sub-container container">
     <div id="content">
         <div class="b-table-box flex-col-4">
+            <!-- Display student's information -->
             <div class="b-row-box">
                 <div class="b-row-item">
                     <div class="b-title-box"> 학번 </div>
@@ -93,13 +116,13 @@
                     <div class="b-title-box">
                         <label for="bb"> 소속 </label>
                     </div>
-                    <div class="b-con-box"> IT대학 컴퓨터학부 </div>
+                    <div class="b-con-box"> <?php echo $row['StdCollege']; echo " ", $row['StdDepartment'];?> </div>
                 </div>
                 <div class="b-row-item">
                     <div class="b-title-box">
                         <label for="allLmttnCrdit"> 수강신청학점 </label>
                     </div>
-                    <div class="b-con-box" id="allLmttnCrdit"></div>
+                    <div class="b-con-box"> <?php print $sum?></div>
                 </div>
             </div>
         </div>
@@ -109,15 +132,22 @@
 
         <div class="b-table-box flex-col-4">
             <div class="b-row-box">
+                <!-- Pass searching course code and login information to search_course.php for implementation  -->
                 <div class="b-row-item">
                     <div class="b-title-box text-danger"> 강좌번호<br>(12자리) </div>
+
                     <form action="search_course.php" method="post" class="b-row-item">
+
                     <div class="b-con-box"> 
                         <input type="text" class="form-control" name="e_courseCode" placeholder="교과목 코드를 입력하세요 (e.g., CLTR0003-005)"> 
                     </div>
+                    <input type="hidden" name="e_StdNo" value="<?php echo $_POST['e_StdNo'] ?>">
+                    <input type="hidden" name="e_StdName" value="<?php echo $_POST['e_StdName'] ?>">
                     <div class="b-con-box">
                         <button type="submit" class="btn btn-danger" formaction="search_course.php">조회</button>
+                        
                     </div>
+                    
                     </form>
                     
                 </div>
@@ -134,12 +164,13 @@
         </div>
         <div class="tab-content">
             <div class="tab-pane fade active show" id="tabs1-1" role="tabpanel">
+                <!--  Display searching course (searching history)  -->
                 <h3 class="sr-only">과목 검색</h3>
                 <br>
                 <br>
 
                 <div class="table-responsive mt-1">
-                    <table class="table table-line text-break text-center" summary="과목 검색 목록 표입니다">
+                <table class="table table-line text-break text-center" summary="과목 검색 목록 표입니다">
                         <caption>this is a grid caption.</caption>
                         <thead>
                         <tr>
@@ -147,99 +178,136 @@
                             <th scope="col">신청</th>
                             <th scope="col">교과목코드</th>
                             <th scope="col">교과목명</th>
-                            <th scope="col">분반</th>
+                            <th scope="col">담당교수</th>
                             <th scope="col">교과구분</th>
                             <th scope="col">학점</th>
-                            <th scope="col">재이수년도</th>
-                            <th scope="col">재이수학기</th>
                             <th scope="col">강의시간</th>
                             <th scope="col">제한인원</th>
-                            <th scope="col">수강인원</th>
                         </tr>
                     </thead>
                         <tbody id="grid02">
+                        <?php
+                            // LOOP TILL END OF DATA
+
+                            $rows = array();
+                            while ($row =  mysqli_fetch_assoc($result)){
+                                $rows[] = $row;
+                            }
+                            foreach($rows as $key=>$value)   
+                        {
+                        ?>
+
                         <tr>
-                            <td>1</td>
+                            <td><?php echo $key+1;?></td>
                             <td>
-                                <a href="#none" onclick="$.scwin.fn_goReqAdd(0);" class="btn btn-sm btn-primary">신청</a>
+                            <form action="register_course.php" method="post">
+                                <input type="hidden" class="form-control" name="e_courseCode" value="<?php echo $value['CourseCode']?>">
+                                <input type="hidden" class="form-control" name="e_StdNo" value="<?php echo $_POST['e_StdNo'] ?>">
+                                <input type="hidden" name="e_StdName" value="<?php echo $_POST['e_StdName'] ?>">
+                                <input type="hidden" name="e_Credit" value="<?php echo $value['Credit'];?>">
+                                <input type="hidden" name="e_Type" value="<?php echo $value['Type'];?>">
+
+                                <button type="submit" class="btn btn-sm btn-primary" formaction="register_course.php">신청</button>
+                            </form>
                             </td>
-                            <td class="text-nowrap">ITEC0425</td>
-                            <td class="text-nowrap">컴퓨터게임제작</td>
-                            <td>001</td>
-                            <td>공학전공</td>
-                            <td>3</td>
-                            <td></td>
-                            <td></td>
-                            <td class="text-nowrap">월 13:00 ~ 14:00,월 14:00 ~ 15:00,월 15:00 ~ 16:00,화 13:00 ~ 14:00,화 14:00 ~ 15:00,화 15:00 ~ 16:00,수 13:00 ~ 14:00,수 14:00 ~ 15:00,수 15:00 ~ 16:00,목 13:00 ~ 14:00,목 14:00 ~ 15:00,목 15:00 ~ 16:00,금 13:00 ~ 14:00,금 14:00 ~ 15:00,금 15:00 ~ 16:00</td>
-                            <td>60</td>
-                            <td>53</td>
+                            <td class="text-nowrap"><?php echo $value['CourseCode'];?></td>
+                            <td class="text-nowrap"><?php echo $value['CourseName'];?></td>
+                            <td class="text-nowrap"><?php echo $value['Lecturer'];?></td>
+                            <td><?php echo $value['Type'];?></td>
+                            <td><?php echo $value['Credit'];?></td>
+                            <td class="text-nowrap"><?php echo $value['CourseTime2'];?></td>
+                            <td><?php echo $value['StudQuota'];?></td>
                         </tr>
+
+                        <?php
+                        }
+                        ?>
                     </tbody>
-                    </table>
-                    <div id="divNoData02" class="mt-3 pt-4 mb-3 pb-4 border border-dark border-left-0 border-right-0" style="display:none;">
-	                    <div class="non-page board">
-	                        <h3>조회된 목록이 없습니다</h3>
-	                    </div>
-	                </div>
+                    </table><?php
+                    if (mysqli_num_rows($result) == 0){
+                        ?>
+                        <div class="mt-3 pt-4 mb-3 pb-4 border border-dark border-left-0 border-right-0">
+                            <div class="non-page board">
+                                <h3>조회된 과목이 없습니다</h3>
+                            </div>
+                        </div>
+                    <?php  }  ?>
                 </div>
-            </div><!-- tab1 -->
+            </div>
         </div>
 
         <br>
         
-
+        <!--  Display registered courses  -->
         <div class="title-box">
             <div class="row">
                 <div class="col-md-auto">
-                    <h3 class="tit-h3">수강꾸러미 신청현황 <small id="grid03cnt">0건</small></h3>
-                </div>
-                <div class="col-md mt-2 mt-md-0">
-                    <div class="text-right">
-                        <a href="#none" class="btn btn-primary" id="btnSave" style="display:none;" onclick="$.scwin.fn_goReqSave();">저장</a>
-                    </div>
+                    <h3 class="tit-h3">수강꾸러미 신청현황 <small id="grid03cnt"><?php echo mysqli_num_rows($result2)?>건</small></h3>
                 </div>
             </div>
         </div>
 
         <div class="table-responsive mt-1">
-            <table class="table table-line text-break text-center" summary="수강신청 목록 표입니다">
-                <caption>this is a grid caption.</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">No.</th>
-                        <th scope="col">삭제</th>
-                        <th scope="col">교과목코드</th>
-                        <th scope="col">교과목명</th>
-                        <th scope="col">분반</th>
-                        <th scope="col">교과구분</th>
-                        <th scope="col">학점</th>
-                        <th scope="col">재이수년도</th>
-                        <th scope="col">재이수학기</th>
-                        <th scope="col">강의시간</th>
-                    </tr>
-                </thead>
-                <tbody id="grid03">
-                    <tr>
-                        <td>1</td>
-                        <td>
-                            <a href="#none" onclick="$.scwin.fn_goReqDel(0);" class="btn btn-sm btn-primary">삭제</a>
-                        </td>
-                        <td class="text-nowrap">ITEC0425</td>
-                        <td class="text-nowrap">컴퓨터게임제작</td>
-                        <td>001</td>
-                        <td><select class="form-control form-control-sm w-100" disabled=""><option value="">선택</option><option value="STCU000800001">교양</option><option value="STCU000800002">전공기초</option><option value="STCU000800004" selected="">전공</option><option value="STCU000800005">부전공</option><option value="STCU000800006">복수전공</option><option value="STCU000800007">교직</option><option value="STCU000800012">전공필수</option><option value="STCU000800010">연계전공</option><option value="STCU000800023">융합전공</option><option value="STCU000800024">전공심화</option><option value="STCU000800025">일반선택</option><option value="STCU000800026">공학전공</option><option value="STCU000800027">전공기반</option><option value="STCU000800028">기본소양</option></select></td>
-                        <td>3</td>
-                        <td></td>
-                        <td></td>
-                        <td>월 13:00 ~ 14:00,월 14:00 ~ 15:00,월 15:00 ~ 16:00,화 13:00 ~ 14:00,화 14:00 ~ 15:00,화 15:00 ~ 16:00,수 13:00 ~ 14:00,수 14:00 ~ 15:00,수 15:00 ~ 16:00,목 13:00 ~ 14:00,목 14:00 ~ 15:00,목 15:00 ~ 16:00,금 13:00 ~ 14:00,금 14:00 ~ 15:00,금 15:00 ~ 16:00</td>
-                    </tr>
-                </tbody>
-            </table>
-            <div id="divNoData03" class="mt-3 pt-4 mb-3 pb-4 border border-dark border-left-0 border-right-0" style="display:none;">
-                <div class="non-page board">
-                    <h3>조회된 목록이 없습니다</h3>
-                </div>
-            </div>
+            <table class="table table-line text-break text-center" summary="과목 검색 목록 표입니다">
+                        <caption>this is a grid caption.</caption>
+                        <thead>
+                        <tr>
+                            <th scope="col">No.</th>
+                            <th scope="col">신청</th>
+                            <th scope="col">교과목코드</th>
+                            <th scope="col">교과목명</th>
+                            <th scope="col">담당교수</th>
+                            <th scope="col">교과구분</th>
+                            <th scope="col">학점</th>
+                            <th scope="col">강의시간</th>
+                            <th scope="col">제한인원</th>
+                        </tr>
+                    </thead>
+                        <tbody id="grid02">
+                        <?php
+                            // LOOP TILL END OF DATA
+                            $rows2 = array();
+                            while ($row2 =  mysqli_fetch_assoc($result2)){
+                                $rows2[] = $row2;
+                            }
+                            foreach($rows2 as $key=>$value)    
+                        {
+                        ?>
+
+                        <tr>
+                            <td><?php echo $key+1;?></td>
+                            <td>
+
+                            <form action="delete_course.php" method="post">
+                                <input type="hidden" class="form-control" name="e_courseCode" value="<?php echo $value['CourseCode']?>">
+                                <input type="hidden" class="form-control" name="e_StdNo" value="<?php echo $_POST['e_StdNo'] ?>">
+                                <input type="hidden" name="e_StdName" value="<?php echo $_POST['e_StdName'] ?>">
+                                <button type="submit" class="btn btn-sm btn-primary" formaction="delete_course.php">삭제</button>
+                            </form>
+                                
+                            </td>
+                            <td class="text-nowrap"><?php echo $value['CourseCode'];?></td>
+                            <td class="text-nowrap"><?php echo $value['CourseName'];?></td>
+                            <td class="text-nowrap"><?php echo $value['Lecturer'];?></td>
+                            <td><?php echo $value['Type'];?></td>
+                            <td><?php echo $value['Credit'];?></td>
+                            <td class="text-nowrap"><?php echo $value['CourseTime2'];?></td>
+                            <td><?php echo $value['StudQuota'];?></td>
+                        </tr>
+
+                        <?php
+                        }
+                        ?>
+                    </tbody>
+                    </table><?php
+                    if (mysqli_num_rows($result2) == 0){
+                        ?>
+                        <div class="mt-3 pt-4 mb-3 pb-4 border border-dark border-left-0 border-right-0">
+                            <div class="non-page board">
+                                <h3>신천된 과목이 없습니다</h3>
+                            </div>
+                        </div>
+                    <?php  }  ?>
         </div>
     </div>
     <div id="footer">
@@ -258,5 +326,6 @@
 		</div>
     </div>
 </div>
+
 </body>
 </html>
